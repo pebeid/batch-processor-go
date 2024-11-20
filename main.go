@@ -5,8 +5,9 @@ import (
 )
 
 func main() {
-	executer := batchjob.BatchJob{}
-	executer.Execute(printHello)
+	processor, ok := batchjob.InstantiateBatchProcessor(10)
+	// executer := batchjob.BatchJob{}
+	// executer.Execute(printHello)
 }
 
 func printHello() {

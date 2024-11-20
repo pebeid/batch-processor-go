@@ -11,8 +11,8 @@ type batchProcessorInner struct {
 
 type BatchProcessor batchProcessorInner
 
-func (p BatchProcessor) Instantiate(batchCount int16) (BatchProcessor, bool) {
-	return BatchProcessor{jobCache: []Job{}, batchCount: 1}, true
+func InstantiateBatchProcessor(batchCount int16) (BatchProcessor, bool) {
+	return BatchProcessor{jobCache: []Job{}, batchCount: batchCount}, true
 }
 
 // type Job struct {
