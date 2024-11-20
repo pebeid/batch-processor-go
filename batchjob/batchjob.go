@@ -28,5 +28,20 @@ func (bp *BatchProcessor) AddJob(job Job) {
 	bp.jobCache = append(bp.jobCache, job)
 }
 
-func (bp *BatchProcessor) RemoveJob(job Job) {
+func (bp *BatchProcessor) RemoveJob(job Job) bool {
+	newJobCache := []Job{}
+	var removed = false
+	for _, j := range bp.jobCache {
+		if j == job {
+			removed = true
+		} else {
+			newJobCache = append(newJobCache, j)
+		}
+	}
+	bp.jobCache = newJobCache
+	return removed
+}
+
+func (bp *BatchProcessor) Count() int {
+	return len(bp.jobCache)
 }

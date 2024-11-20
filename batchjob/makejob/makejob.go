@@ -30,7 +30,7 @@ func WithArgsAndNoReturn(function func(...interface{}), args ...interface{}) bj.
 	return &genericJob{function: modifiedFn}
 }
 
-func WithNoArgsAndNoReturn(function func() (result interface{}, err error)) bj.Job {
+func WithNoArgsAndNoReturn(function func()) bj.Job {
 	modifiedFn := func(...interface{}) (result interface{}, err error) {
 		function()
 		return nil, nil
