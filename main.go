@@ -2,12 +2,12 @@ package main
 
 import (
 	"github.com/pebeid/batch-processor-go/batchjob"
-	"github.com/pebeid/batch-processor-go/batchjob/makeJob"
+	"github.com/pebeid/batch-processor-go/makejob"
 )
 
 func main() {
 	processor, _ := batchjob.InstantiateBatchProcessor(10)
-	printHelloJob := makeJob.WithNoArgsAndNoReturn(printHello)
+	printHelloJob := makejob.WithNoArgsAndNoReturn(printHello)
 	processor.AddJob(printHelloJob)
 	// executer := batchjob.BatchJob{}
 	// executer.Execute(printHello)
