@@ -21,12 +21,14 @@ func main() {
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
-	processor.ExecuteImmediate(func(res batchjob.JobResult) {
-		switch res.Success {
-		case true:
-			println("Count: " + strconv.Itoa(res.Result.(int)))
-		case false:
-			println("Error executing job:", res.Error)
+	processor.Begin(func(ress []batchjob.JobResult) {
+		for _, res := range ress {
+			switch res.Success {
+			case true:
+				println("Count: " + strconv.Itoa(res.Result.(int)))
+			case false:
+				println("Error executing job:", res.Error)
+			}
 		}
 	})
 

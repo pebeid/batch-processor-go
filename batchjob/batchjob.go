@@ -23,13 +23,14 @@ func (e *endJob) Execute() (interface{}, error) {
 
 // BatchProcessor
 type batchProcessorInner struct {
-	jobCache  []Job
-	batchSize int16
+	jobCache         []Job
+	batchSize        uint16
+	batchesInProcess uint
 }
 
 type BatchProcessor batchProcessorInner
 
-func InstantiateBatchProcessor(batchSize int16) (BatchProcessor, bool) {
+func InstantiateBatchProcessor(batchSize uint16) (BatchProcessor, bool) {
 	return BatchProcessor{jobCache: []Job{}, batchSize: batchSize}, true
 }
 
@@ -55,7 +56,41 @@ func (bp *BatchProcessor) Count() int {
 	return len(bp.jobCache)
 }
 
-func (bp *BatchProcessor) ExecuteImmediate(callback func(JobResult)) {
+func (bp *BatchProcessor) Begin(callback func([]JobResult)) {
+	results := make(chan []JobResult)
+	var splitStart, splitEnd = 0, int(bp.batchSize)
+	for {
+		if splitEnd > len(bp.jobCache) {
+			splitEnd = len(bp.jobCache)
+		}
+		batch := bp.jobCache[splitStart:splitEnd]
+		bp.batchesInProcess = bp.batchesInProcess + 1
+		go func(batch []Job) {
+			res := []JobResult{}
+			for _, job := range batch {
+				result, err := job.Execute()
+				res = append(res, JobResult{Job: job, Result: result, Error: err, Success: err == nil})
+			}
+			results <- res
+		}(batch)
+		if splitEnd == len(bp.jobCache) {
+			break
+		} else {
+			splitStart = splitEnd
+			splitEnd = splitEnd + int(bp.batchSize)
+		}
+	}
+	// shadow
+	for result := range results {
+		callback(result)
+		bp.batchesInProcess = bp.batchesInProcess - 1
+		if bp.batchesInProcess <= 0 {
+			return
+		}
+	}
+}
+
+func (bp *BatchProcessor) BeginImmediate(callback func(JobResult)) {
 	results := make(chan JobResult, len(bp.jobCache))
 	go func() {
 		for _, job := range bp.jobCache {
