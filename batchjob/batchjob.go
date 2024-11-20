@@ -1,5 +1,10 @@
 package batchjob
 
+import (
+	"strconv"
+	"time"
+)
+
 // JobResult
 type JobResult struct {
 	Job     Job
@@ -25,13 +30,19 @@ func (e *endJob) Execute() (interface{}, error) {
 type batchProcessorInner struct {
 	jobCache         []Job
 	batchSize        uint16
+	batchInterval    time.Duration
 	batchesInProcess uint
+}
+
+type BatchProccessInitialiser struct {
+	BatchSize uint16
+	Interval  time.Duration
 }
 
 type BatchProcessor batchProcessorInner
 
-func InstantiateBatchProcessor(batchSize uint16) (BatchProcessor, bool) {
-	return BatchProcessor{jobCache: []Job{}, batchSize: batchSize}, true
+func InstantiateBatchProcessor(initialiser BatchProccessInitialiser) (BatchProcessor, bool) {
+	return BatchProcessor{jobCache: []Job{}, batchSize: initialiser.BatchSize, batchInterval: initialiser.Interval}, true
 }
 
 func (bp *BatchProcessor) AddJob(job Job) {
@@ -59,6 +70,7 @@ func (bp *BatchProcessor) Count() int {
 func (bp *BatchProcessor) Begin(callback func([]JobResult)) {
 	results := make(chan []JobResult)
 	var splitStart, splitEnd = 0, int(bp.batchSize)
+	defer close(results)
 	for {
 		if splitEnd > len(bp.jobCache) {
 			splitEnd = len(bp.jobCache)

@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	processor, _ := batchjob.InstantiateBatchProcessor(10)
+	processor, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{BatchSize: 2})
 	// printHelloJob := makejob.WithNoArgsAndNoReturn(printHello)
 	// printHelloJob2 := makejob.WithNoArgsAndNoReturn(printHello)
 	// processor.AddJob(printHelloJob)
