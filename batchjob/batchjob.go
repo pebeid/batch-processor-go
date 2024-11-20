@@ -9,25 +9,7 @@ type JobResult struct {
 
 // Job interface
 type Job interface {
-	Execute() JobResult
-}
-
-type genericJob struct {
-	function func(...interface{}) (interface{}, error)
-	args     []interface{}
-}
-
-func (gj *genericJob) Execute() JobResult {
-	res, err := gj.function(gj.args)
-	if err != nil {
-		return JobResult{result: res, success: false, err: err}
-	} else {
-		return JobResult{result: res, success: true}
-	}
-}
-
-func MakeJob(function func(...interface{}) (result interface{}, err error), args ...interface{}) Job {
-	return &genericJob{function: function, args: args}
+	Execute() (interface{}, error)
 }
 
 // BatchProcessor
