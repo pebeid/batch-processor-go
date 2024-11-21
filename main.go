@@ -19,22 +19,15 @@ func main() {
 		}
 	}
 
-	processor, waiter, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{Interval: time.Duration(5 * time.Second), Callback: &callback})
-	// printHelloJob := makejob.WithNoArgsAndNoReturn(printHello)
-	// printHelloJob2 := makejob.WithNoArgsAndNoReturn(printHello)
-	// processor.AddJob(printHelloJob)
-	// processor.AddJob(printHelloJob2)
-	// println(processor.Count())
-	// processor.RemoveJob(printHelloJob)
-	// println(processor.Count())
-	// executer := batchjob.BatchJob{}
-	// executer.Execute(printHello)
+	// processor, waiter, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{Interval: time.Duration(5 * time.Second), Callback: &callback})
+	// processor, waiter, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{BatchSize: 2, Callback: &callback})
+	processor, waiter, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{BatchSize: 2, Interval: time.Duration(5 * time.Second), Callback: &callback})
 
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.Begin()
-	var delay = <-time.Tick(10 * time.Second)
+	var delay = <-time.Tick(1 * time.Second)
 	switch delay {
 	default:
 		processor.AddJob(makejob.WithNoArgs(getTimeStamp))
@@ -43,10 +36,6 @@ func main() {
 	}
 	waiter.Wait()
 }
-
-// func printHello() {
-// 	println("HELLO WORLD!")
-// }
 
 func getTimeStamp() (interface{}, error) {
 	time.Tick(1 * time.Second)

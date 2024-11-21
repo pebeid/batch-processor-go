@@ -60,6 +60,9 @@ func InstantiateBatchProcessor(initialiser BatchProccessInitialiser) (*BatchProc
 		return nil, nil, false
 	}
 	var waiter sync.WaitGroup
+	if initialiser.Interval == 0 {
+		initialiser.Interval = 50 * time.Millisecond
+	}
 	return &BatchProcessor{jobCache: []Job{}, batchSize: initialiser.BatchSize, batchInterval: initialiser.Interval, callback: initialiser.Callback, waiter: &waiter}, &waiter, true
 }
 
@@ -141,38 +144,25 @@ func (bp *BatchProcessor) Begin() {
 
 	bp.state = Active
 
-	if bp.batchInterval != 0 {
-		bp.waiter.Add(1)
-		go func() {
-		batchLoop:
-			for {
-				var alarm = <-time.Tick(bp.batchInterval)
-				switch alarm {
-				default:
-					batch := bp.getNextBatch()
-					bp.signalBatchStart()
-					go func(batch []Job) {
-						bp.processBatch(batch)
-					}(batch)
-					if bp.atEnd() {
-						break batchLoop
-					}
+	bp.waiter.Add(1)
+	go func() {
+	batchLoop:
+		for {
+			var alarm = <-time.Tick(bp.batchInterval)
+			switch alarm {
+			default:
+				batch := bp.getNextBatch()
+				bp.signalBatchStart()
+				go func(batch []Job) {
+					bp.processBatch(batch)
+				}(batch)
+				if bp.atEnd() {
+					break batchLoop
 				}
 			}
-			bp.waiter.Done()
-		}()
-	} else {
-		for {
-			batch := bp.getNextBatch()
-			bp.signalBatchStart()
-			go func(batch []Job) {
-				bp.processBatch(batch)
-			}(batch)
-			if bp.atEnd() {
-				break
-			}
 		}
-	}
+		bp.waiter.Done()
+	}()
 }
 
 func (bp *BatchProcessor) BeginImmediate() {
