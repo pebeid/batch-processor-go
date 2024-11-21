@@ -44,5 +44,6 @@ func main() {
 // }
 
 func getTimeStamp() (interface{}, error) {
+	time.Tick(1 * time.Second)
 	return time.Now(), nil
 }
