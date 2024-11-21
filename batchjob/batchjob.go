@@ -7,6 +7,12 @@ import (
 )
 
 // JobResult
+//
+//		    Job 	original job passed
+//	   	Result 	the result object of the job execution
+//	   	Error 	the error encountered during the job execution
+//	   	Success	true if the job execution was successful, false otherwise
+//			This struct is used to pass the result of the job execution back to the caller.
 type JobResult struct {
 	Job     Job
 	Result  interface{}
@@ -14,7 +20,9 @@ type JobResult struct {
 	Success bool
 }
 
-// Job interface
+// Job
+//
+//	Execute() method is called when the BatchProcessor executes the job and returns a result as defined by the implementing functions as well as an error if there was one
 type Job interface {
 	Execute() (interface{}, error)
 }
@@ -47,14 +55,40 @@ type batchProcessorInner struct {
 	batchesInProcess uint
 }
 
+// BatchProcessorInitialiser
+// Factory struct for holding the configuration of the batch job processor (BatchProcessor)
+// Once configured. the struct is passed to BatchProcessor initialiser (i.e. InstantiateBatchProcessor)
+// BatchProcessor can be configured to run jobs in batches based on a time interval (i.e. every x amount of time passed)
+// or it can split all jobs into batches, with each batch run in a separate thread
+// or if both BatchSize and Interval are specified, then the batch job will execite a batch of jobs, limited in size by
+// BatchSize every Interval amount of time. Callback function is required to provess the batch running result.
+//
+//	BatchSize 	maximum number of jobs to run at once
+//	Interval 	time between cycles of collecting next set of jobs into a batch (optionally) and running them
+//	Callback	function that is able to handle the result of []Job run
 type BatchProccessInitialiser struct {
 	BatchSize uint16
 	Interval  time.Duration
 	Callback  *func([]JobResult)
 }
 
+// BatchProcessor
+// Processes slices of Job(s) at a time by calling Job.Execute() on each job and returning the result and any error to the callback function
+// Job(s) are run in multiple batches, each run in a goprocess
 type BatchProcessor batchProcessorInner
 
+// InstantiateBatchProcessor
+// Returns BatchProcessor configured to run a maximum Job batch size and interval according to the initialiser object
+//
+//	Initialiser		BatchProcessor Callback function, BatchSize and Interval configuration
+//
+// Returns *BatchProcessor pointer, the *sync.WaitGroup pointer and bool to represent whether the BatchProcessor was initialised correctly
+// If the bool is false, then the initialiser (BatchProcessorInitialiser) was not configured correctly.
+// BatchProcessorInitialiser.Callback is mandatory and either BatchProcessorInitialiser.BatchSize AND/OR BatchProcessorInitialiser.Interval must
+// be set
+//
+// The Wait() method on the sync.WaitGroup must be called by the Begin() method caller after. If it's not called, the system may exit before
+// all the batches have had a chance to execute. If the BatchProcessor is used intermitently, the Wait must be called after each use.
 func InstantiateBatchProcessor(initialiser BatchProccessInitialiser) (*BatchProcessor, *sync.WaitGroup, bool) {
 	if initialiser.Callback == nil || (initialiser.BatchSize == 0 && initialiser.Interval == 0) {
 		return nil, nil, false
@@ -66,6 +100,10 @@ func InstantiateBatchProcessor(initialiser BatchProccessInitialiser) (*BatchProc
 	return &BatchProcessor{jobCache: []Job{}, batchSize: initialiser.BatchSize, batchInterval: initialiser.Interval, callback: initialiser.Callback, waiter: &waiter}, &waiter, true
 }
 
+// AddJob
+// Adds job to the queue, which is split into batches and run.
+// If the BatchProcessor is already running (i.e. Begin() method is called at least once) then the added Job will execute in the
+// next available batch
 func (bp *BatchProcessor) AddJob(job Job) {
 	bp.jobCache = append(bp.jobCache, job)
 	if bp.state == Active && bp.batchesInProcess < 1 {
@@ -74,6 +112,8 @@ func (bp *BatchProcessor) AddJob(job Job) {
 	}
 }
 
+// RemoveJob
+// Removes Job from job queue. If a Job is added while the BatchProcessor is running, it may execute before it has the chance to be removed.
 func (bp *BatchProcessor) RemoveJob(job Job) bool {
 	newJobCache := []Job{}
 	var removed = false
@@ -88,8 +128,16 @@ func (bp *BatchProcessor) RemoveJob(job Job) bool {
 	return removed
 }
 
+// Count
+// Current Job queue length
 func (bp *BatchProcessor) Count() int {
 	return len(bp.jobCache)
+}
+
+// IsRunning
+// Whether the BatchProcessor is Running
+func (bp *BatchProcessor) IsRunning() bool {
+	return bool(bp.state)
 }
 
 func (bp *BatchProcessor) getNextBatch() []Job {
@@ -139,6 +187,9 @@ func (bp *BatchProcessor) atEnd() bool {
 	return bp.beginFrom >= len(bp.jobCache)
 }
 
+// Begin
+// Starts the interval countdown and the subsequent batching of Jobs and their running.
+// IMPORTANT: Rembmer to call the Wait() method from the sync.WaitGroup return by the BatchProcessor initialiser.
 func (bp *BatchProcessor) Begin() {
 	println("BEGIN")
 
@@ -165,6 +216,8 @@ func (bp *BatchProcessor) Begin() {
 	}()
 }
 
+// BeginImmediate
+// Executes the batches of Job without any interval
 func (bp *BatchProcessor) BeginImmediate() {
 	results := make(chan JobResult, len(bp.jobCache))
 	go func() {
