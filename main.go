@@ -19,7 +19,7 @@ func main() {
 		}
 	}
 
-	processor, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{Interval: time.Duration(5 * time.Second), Callback: &callback})
+	processor, waiter, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{Interval: time.Duration(5 * time.Second), Callback: &callback})
 	// printHelloJob := makejob.WithNoArgsAndNoReturn(printHello)
 	// printHelloJob2 := makejob.WithNoArgsAndNoReturn(printHello)
 	// processor.AddJob(printHelloJob)
@@ -29,14 +29,19 @@ func main() {
 	// println(processor.Count())
 	// executer := batchjob.BatchJob{}
 	// executer.Execute(printHello)
+
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.Begin()
-	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
-	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
-	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
-
+	var delay = <-time.Tick(10 * time.Second)
+	switch delay {
+	default:
+		processor.AddJob(makejob.WithNoArgs(getTimeStamp))
+		processor.AddJob(makejob.WithNoArgs(getTimeStamp))
+		processor.AddJob(makejob.WithNoArgs(getTimeStamp))
+	}
+	waiter.Wait()
 }
 
 // func printHello() {

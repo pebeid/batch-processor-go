@@ -1,6 +1,7 @@
 package batchjob
 
 import (
+	"strconv"
 	"sync"
 	"time"
 )
@@ -40,6 +41,7 @@ type batchProcessorInner struct {
 	batchSize        uint16
 	callback         *func([]JobResult)
 	batchInterval    time.Duration
+	waiter           *sync.WaitGroup
 	state            state
 	beginFrom        int
 	batchesInProcess uint
@@ -53,19 +55,19 @@ type BatchProccessInitialiser struct {
 
 type BatchProcessor batchProcessorInner
 
-func InstantiateBatchProcessor(initialiser BatchProccessInitialiser) (*BatchProcessor, bool) {
+func InstantiateBatchProcessor(initialiser BatchProccessInitialiser) (*BatchProcessor, *sync.WaitGroup, bool) {
 	if initialiser.Callback == nil || (initialiser.BatchSize == 0 && initialiser.Interval == 0) {
-		return nil, false
+		return nil, nil, false
 	}
-	return &BatchProcessor{jobCache: []Job{}, batchSize: initialiser.BatchSize, batchInterval: initialiser.Interval, callback: initialiser.Callback}, true
+	var waiter sync.WaitGroup
+	return &BatchProcessor{jobCache: []Job{}, batchSize: initialiser.BatchSize, batchInterval: initialiser.Interval, callback: initialiser.Callback, waiter: &waiter}, &waiter, true
 }
 
 func (bp *BatchProcessor) AddJob(job Job) {
 	bp.jobCache = append(bp.jobCache, job)
 	if bp.state == Active && bp.batchesInProcess < 1 {
 		println("Restarting Process")
-		go bp.Begin()
-		time.Sleep(5000 * time.Millisecond)
+		bp.Begin()
 	}
 }
 
@@ -87,21 +89,8 @@ func (bp *BatchProcessor) Count() int {
 	return len(bp.jobCache)
 }
 
-func (bp *BatchProcessor) processBatch(batch []Job, waiter *sync.WaitGroup) {
-	bp.batchesInProcess = bp.batchesInProcess + 1
-	waiter.Add(1)
-	results := []JobResult{}
-	for _, job := range batch {
-		result, err := job.Execute()
-		results = append(results, JobResult{Job: job, Result: result, Error: err, Success: err == nil})
-	}
-	callback := *bp.callback
-	callback(results)
-	waiter.Done()
-	bp.batchesInProcess = bp.batchesInProcess - 1
-}
-
 func (bp *BatchProcessor) getNextBatch() []Job {
+	println("Getting next batch", strconv.Itoa(len(bp.jobCache)), bp.beginFrom)
 	if len(bp.jobCache) == 0 {
 		return []Job{}
 	}
@@ -121,47 +110,69 @@ func (bp *BatchProcessor) getNextBatch() []Job {
 	return bp.jobCache[sliceStart:sliceEnd]
 }
 
+func (bp *BatchProcessor) signalBatchStart() {
+	bp.waiter.Add(1)
+	bp.batchesInProcess = bp.batchesInProcess + 1
+}
+
+func (bp *BatchProcessor) signalBatchEnd() {
+	bp.waiter.Done()
+	bp.batchesInProcess = bp.batchesInProcess - 1
+}
+
+func (bp *BatchProcessor) processBatch(batch []Job) {
+	println("Processing batch", strconv.Itoa(len(batch)))
+	results := []JobResult{}
+	for _, job := range batch {
+		result, err := job.Execute()
+		results = append(results, JobResult{Job: job, Result: result, Error: err, Success: err == nil})
+	}
+	callback := *bp.callback
+	callback(results)
+	bp.signalBatchEnd()
+}
+
 func (bp *BatchProcessor) atEnd() bool {
 	return bp.beginFrom >= len(bp.jobCache)
 }
 
-func (bp *BatchProcessor) Begin() chan bool {
+func (bp *BatchProcessor) Begin() {
 	println("BEGIN")
-	var asyncProcessWait sync.WaitGroup
-	// defer asyncProcessWait.Wait()
-
-	processListener := make(chan bool)
 
 	bp.state = Active
 
 	if bp.batchInterval != 0 {
-	batchLoop:
-		for {
-			var alarm = <-time.Tick(bp.batchInterval)
-			switch alarm {
-			default:
-				batch := bp.getNextBatch()
-				go func(batch []Job, waiter *sync.WaitGroup) {
-					bp.processBatch(batch, waiter)
-				}(batch, &asyncProcessWait)
-				if bp.atEnd() {
-
-					break batchLoop
+		bp.waiter.Add(1)
+		go func() {
+		batchLoop:
+			for {
+				var alarm = <-time.Tick(bp.batchInterval)
+				switch alarm {
+				default:
+					batch := bp.getNextBatch()
+					bp.signalBatchStart()
+					go func(batch []Job) {
+						bp.processBatch(batch)
+					}(batch)
+					if bp.atEnd() {
+						break batchLoop
+					}
 				}
 			}
-		}
+			bp.waiter.Done()
+		}()
 	} else {
 		for {
 			batch := bp.getNextBatch()
-			go func(batch []Job, waiter *sync.WaitGroup) {
-				bp.processBatch(batch, waiter)
-			}(batch, &asyncProcessWait)
+			bp.signalBatchStart()
+			go func(batch []Job) {
+				bp.processBatch(batch)
+			}(batch)
 			if bp.atEnd() {
 				break
 			}
 		}
 	}
-	return processListener
 }
 
 func (bp *BatchProcessor) BeginImmediate() {
