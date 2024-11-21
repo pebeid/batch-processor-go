@@ -27,7 +27,7 @@ func main() {
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.AddJob(makejob.WithNoArgs(getTimeStamp))
 	processor.Begin()
-	var delay = <-time.Tick(1 * time.Second)
+	var delay = <-time.Tick(10 * time.Second)
 	switch delay {
 	default:
 		processor.AddJob(makejob.WithNoArgs(getTimeStamp))

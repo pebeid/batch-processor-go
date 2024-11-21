@@ -51,7 +51,6 @@ type batchProcessorInner struct {
 	batchInterval    time.Duration
 	waiter           *sync.WaitGroup
 	state            state
-	beginFrom        int
 	batchesInProcess uint
 }
 
@@ -141,24 +140,28 @@ func (bp *BatchProcessor) IsRunning() bool {
 }
 
 func (bp *BatchProcessor) getNextBatch() []Job {
-	println("Getting next batch", strconv.Itoa(len(bp.jobCache)), bp.beginFrom)
+	println("Getting next batch", strconv.Itoa(len(bp.jobCache)))
 	if len(bp.jobCache) == 0 {
 		return []Job{}
 	}
 
-	var sliceStart = bp.beginFrom
 	var sliceEnd int
 	if bp.batchSize == 0 {
 		sliceEnd = len(bp.jobCache)
 	} else {
-		sliceEnd = sliceStart + int(bp.batchSize)
+		sliceEnd = int(bp.batchSize)
 	}
 	if sliceEnd > len(bp.jobCache) {
 		sliceEnd = len(bp.jobCache)
 	}
-	bp.beginFrom = sliceEnd
 
-	return bp.jobCache[sliceStart:sliceEnd]
+	slice := bp.jobCache[0:sliceEnd]
+	if len(bp.jobCache) >= sliceEnd {
+		bp.jobCache = bp.jobCache[sliceEnd:]
+	} else {
+		bp.jobCache = []Job{}
+	}
+	return slice
 }
 
 func (bp *BatchProcessor) signalBatchStart() {
@@ -184,7 +187,7 @@ func (bp *BatchProcessor) processBatch(batch []Job) {
 }
 
 func (bp *BatchProcessor) atEnd() bool {
-	return bp.beginFrom >= len(bp.jobCache)
+	return len(bp.jobCache) < 1
 }
 
 // Begin
