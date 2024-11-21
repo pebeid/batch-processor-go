@@ -106,7 +106,6 @@ func InstantiateBatchProcessor(initialiser BatchProccessInitialiser) (*BatchProc
 func (bp *BatchProcessor) AddJob(job Job) {
 	bp.jobCache = append(bp.jobCache, job)
 	if bp.state == Active && bp.batchesInProcess < 1 {
-		println("Restarting Process")
 		bp.Begin()
 	}
 }
@@ -140,7 +139,6 @@ func (bp *BatchProcessor) IsRunning() bool {
 }
 
 func (bp *BatchProcessor) getNextBatch() []Job {
-	println("Getting next batch", strconv.Itoa(len(bp.jobCache)))
 	if len(bp.jobCache) == 0 {
 		return []Job{}
 	}
@@ -194,8 +192,6 @@ func (bp *BatchProcessor) atEnd() bool {
 // Starts the interval countdown and the subsequent batching of Jobs and their running.
 // IMPORTANT: Rembmer to call the Wait() method from the sync.WaitGroup return by the BatchProcessor initialiser.
 func (bp *BatchProcessor) Begin() {
-	println("BEGIN")
-
 	bp.state = Active
 
 	bp.waiter.Add(1)
@@ -222,23 +218,14 @@ func (bp *BatchProcessor) Begin() {
 // BeginImmediate
 // Executes the batches of Job without any interval
 func (bp *BatchProcessor) BeginImmediate() {
-	results := make(chan JobResult, len(bp.jobCache))
-	go func() {
-		for _, job := range bp.jobCache {
-			result, err := job.Execute()
-			results <- JobResult{Job: job, Result: result, Error: err, Success: err == nil}
-		}
-		results <- JobResult{Job: &endJob{}, Result: nil, Error: nil, Success: true}
-	}()
-	// shadow
-	for result := range results {
-		job := result.Job
-		_, isEndJob := job.(*endJob)
-		if isEndJob {
+	for {
+		batch := bp.getNextBatch()
+		bp.signalBatchStart()
+		go func(batch []Job) {
+			bp.processBatch(batch)
+		}(batch)
+		if bp.atEnd() {
 			break
-		} else {
-			callback := *bp.callback
-			callback([]JobResult{result})
 		}
 	}
 }
