@@ -67,11 +67,20 @@ func (bp *BatchProcessor) Count() int {
 	return len(bp.jobCache)
 }
 
+func (bp *BatchProcessor) alarmRunner(run func() bool) bool {
+	var alarm = <-time.Tick(bp.batchInterval)
+	switch alarm {
+	default:
+		return run()
+	}
+}
+
 func (bp *BatchProcessor) Begin(callback func([]JobResult)) {
 	results := make(chan []JobResult)
-	var splitStart, splitEnd = 0, int(bp.batchSize)
 	defer close(results)
-	for {
+	var splitStart, splitEnd = 0, int(bp.batchSize)
+
+	processBatch := func() (done bool) {
 		if splitEnd > len(bp.jobCache) {
 			splitEnd = len(bp.jobCache)
 		}
@@ -86,14 +95,36 @@ func (bp *BatchProcessor) Begin(callback func([]JobResult)) {
 			results <- res
 		}(batch)
 		if splitEnd == len(bp.jobCache) {
-			break
+			done = true
 		} else {
 			splitStart = splitEnd
 			splitEnd = splitEnd + int(bp.batchSize)
+			done = false
+		}
+		return done
+	}
+
+	if bp.batchInterval != 0 {
+		var done = false
+		for {
+			done = bp.alarmRunner(processBatch)
+			if done {
+				break
+			}
+		}
+	} else {
+		var done bool = false
+		for {
+			done = processBatch()
+			if done {
+				break
+			}
 		}
 	}
+
 	// shadow
 	for result := range results {
+		println("CALLING CALLBACK " + strconv.Itoa(len(result)))
 		callback(result)
 		bp.batchesInProcess = bp.batchesInProcess - 1
 		if bp.batchesInProcess <= 0 {

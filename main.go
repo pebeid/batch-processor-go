@@ -1,14 +1,14 @@
 package main
 
 import (
-	"strconv"
+	"time"
 
 	"github.com/pebeid/batch-processor-go/batchjob"
 	"github.com/pebeid/batch-processor-go/batchjob/makejob"
 )
 
 func main() {
-	processor, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{BatchSize: 2})
+	processor, _ := batchjob.InstantiateBatchProcessor(batchjob.BatchProccessInitialiser{BatchSize: 2, Interval: time.Duration(5 * time.Second)})
 	// printHelloJob := makejob.WithNoArgsAndNoReturn(printHello)
 	// printHelloJob2 := makejob.WithNoArgsAndNoReturn(printHello)
 	// processor.AddJob(printHelloJob)
@@ -25,7 +25,7 @@ func main() {
 		for _, res := range ress {
 			switch res.Success {
 			case true:
-				println("Count: " + strconv.Itoa(res.Result.(int)))
+				println("Count: " + res.Result.(time.Time).String())
 			case false:
 				println("Error executing job:", res.Error)
 			}
@@ -38,9 +38,6 @@ func main() {
 // 	println("HELLO WORLD!")
 // }
 
-var count = 0
-
 func getTimeStamp() (interface{}, error) {
-	count++
-	return count, nil
+	return time.Now(), nil
 }
