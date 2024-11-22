@@ -1,7 +1,6 @@
 package batchjob
 
 import (
-	"strconv"
 	"sync"
 	"time"
 )
@@ -173,7 +172,6 @@ func (bp *BatchProcessor) signalBatchEnd() {
 }
 
 func (bp *BatchProcessor) processBatch(batch []Job) {
-	println("Processing batch", strconv.Itoa(len(batch)))
 	results := []JobResult{}
 	for _, job := range batch {
 		result, err := job.Execute()
