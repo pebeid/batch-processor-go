@@ -26,16 +26,7 @@ type Job interface {
 	Execute() (interface{}, error)
 }
 
-// endJob is a special type of job that indicates that all jobs in a batch were processed
-type endJob struct {
-}
-
-func (e *endJob) Execute() (interface{}, error) {
-	return "nil", nil
-}
-
 // BatchProcessor
-
 type state bool
 
 const (
